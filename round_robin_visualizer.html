@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Round Robin Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f5fa;
+            margin: 0;
+            color: #222;
+        }
+
+        header {
+            background: #203864;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        main {
+            max-width: 950px;
+            margin: 20px auto;
+            padding: 0 12px;
+        }
+
+        section {
+            background: white;
+            padding: 16px;
+            margin-bottom: 16px;
+            border-radius: 8px;
+        }
+
+        button, select {
+            padding: 9px;
+            margin: 5px 4px 5px 0;
+            border: 1px solid #bbb;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button {
+            background: #203864;
+            color: white;
+        }
+
+        .secondary {
+            background: #e2e9f5;
+            color: #203864;
+        }
+
+        .note {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background: #edf1f7;
+        }
+
+        .chart {
+            display: flex;
+            overflow-x: auto;
+            margin-top: 12px;
+        }
+
+        .block {
+            min-width: 45px;
+            height: 55px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-right: 2px solid white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .block small {
+            font-weight: normal;
+            margin-top: 4px;
+        }
+
+        .p1 { background: #9bd6ff; }
+        .p2 { background: #ffd28c; }
+        .p3 { background: #b7e4c7; }
+        .p4 { background: #e2c6ff; }
+        .switch { background: #d5d9e0; }
+
+        .time-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .time-item {
+            background: #f5f7fb;
+            border: 1px solid #ccd4e0;
+            border-radius: 5px;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .active {
+            border: 2px solid #203864;
+            background: #dce8fb;
+        }
+
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .stat {
+            background: #edf3fc;
+            padding: 12px;
+            border-radius: 6px;
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .stat p {
+            margin: 0 0 7px;
+            font-size: 13px;
+        }
+
+        .stat strong {
+            font-size: 20px;
+        }
+
+        @media (max-width: 600px) {
+            table { font-size: 11px; }
+            th, td { padding: 5px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Round Robin Scheduling Visualizer</h1>
+        <p>Watch how the CPU runs each process</p>
+    </header>
+
+    <main>
+        <section>
+            <h2>1. Choose Activity</h2>
+
+            <label>Activity:</label>
+            <select id="activity">
+                <option value="1">Activity 1 - No overhead</option>
+                <option value="2">Activity 2 - With overhead</option>
+            </select>
+
+            <label>Time quantum:</label>
+            <select id="quantum">
+                <option value="2">2 ms</option>
+                <option value="3">3 ms</option>
+                <option value="4">4 ms</option>
+            </select>
+
+            <button onclick="runSimulation()">Run</button>
+            <button class="secondary" onclick="compareResults()">Compare</button>
+
+            <p class="note" id="activityNote"></p>
+            <h3>Process Details</h3>
+            <div id="processTable"></div>
+        </section>
+
+        <section>
+            <h2>2. Gantt Chart</h2>
+            <p class="note">Each block shows which process runs and when it starts and ends.</p>
+            <div class="chart" id="chart"></div>
+
+            <p>
+                <button class="secondary" onclick="previousTime()">Previous 1 ms</button>
+                <button onclick="nextTime()">Next 1 ms</button>
+                <button class="secondary" onclick="resetTime()">Reset</button>
+            </p>
+
+            <p id="timeText"></p>
+            <div class="time-list" id="timeList"></div>
+        </section>
+
+        <section>
+            <h2>3. Performance Results</h2>
+            <div class="stats" id="stats"></div>
+            <h3>Results for Each Process</h3>
+            <div id="resultTable"></div>
+            <p class="note" id="extraNote"></p>
+        </section>
+
+        <section id="comparisonSection" style="display:none">
+            <h2>4. Compare Time Quanta</h2>
+            <div id="comparisonTable"></div>
+        </section>
+    </main>
+
+<script>
+    // Process data from the assignment
+    var activity1 = [
+        { name: "P1", task: "Water-quality monitoring", arrival: 0, burst: 5 },
+        { name: "P2", task: "Waste-collection scheduling", arrival: 1, burst: 3 },
+        { name: "P3", task: "Traffic-pollution analysis", arrival: 2, burst: 4 },
+        { name: "P4", task: "Public energy-use monitoring", arrival: 3, burst: 2 }
+    ];
+
+    var activity2 = [
+        { name: "P1", task: "Flood-warning analysis", arrival: 0, burst: 5 },
+        { name: "P2", task: "Air-quality alert generation", arrival: 1, burst: 4 },
+        { name: "P3", task: "Emergency evacuation-route update", arrival: 2, burst: 3 },
+        { name: "P4", task: "Renewable-grid status monitoring", arrival: 3, burst: 2 }
+    ];
+
+    var processes;
+    var schedule;
+    var currentTime = 0;
+    var totalTime = 0;
+    var switchCount = 0;
+    var overheadTime = 0;
+    var currentActivity = 1;
+    var currentQuantum = 2;
+
+    function runSimulation() {
+        currentActivity = Number(document.getElementById("activity").value);
+        currentQuantum = Number(document.getElementById("quantum").value);
+
+        if (currentActivity === 1) {
+            processes = activity1;
+            document.getElementById("activityNote").textContent =
+                "Context-switching time is ignored in Activity 1.";
+        } else {
+            processes = activity2;
+            document.getElementById("activityNote").textContent =
+                "Each change from one process to another takes 1 ms.";
+        }
+
+        makeSchedule();
+        showProcessTable();
+        showChart();
+        showResults();
+    }
+
+    function makeSchedule() {
+        var remaining = [];
+        var firstStart = [];
+        var completion = [];
+        var readyQueue = [];
+        var added = [];
+        var lastProcess = "";
+        var time = 0;
+
+        schedule = [];
+        switchCount = 0;
+        overheadTime = 0;
+
+        for (var i = 0; i < processes.length; i++) {
+            remaining[i] = processes[i].burst;
+            firstStart[i] = -1;
+            completion[i] = 0;
+            added[i] = false;
+        }
+
+        while (true) {
+            // Add processes that have arrived
+            for (var i = 0; i < processes.length; i++) {
+                if (processes[i].arrival <= time && added[i] === false) {
+                    readyQueue.push(i);
+                    added[i] = true;
+                }
+            }
+
+            // Stop when all processes are complete
+            var finished = true;
+            for (var i = 0; i < remaining.length; i++) {
+                if (remaining[i] > 0) {
+                    finished = false;
+                }
+            }
+            if (finished) {
+                break;
+            }
+
+            // If the queue is empty, move time to the next arrival
+            if (readyQueue.length === 0) {
+                time++;
+                continue;
+            }
+
+            var index = readyQueue.shift();
+            var processName = processes[index].name;
+
+            // Add context-switching time for Activity 2
+            if (currentActivity === 2 && lastProcess !== "" &&
+                lastProcess !== processName) {
+                schedule.push({
+                    name: "Switch",
+                    start: time,
+                    end: time + 1,
+                    type: "switch"
+                });
+                time++;
+                overheadTime++;
+                switchCount++;
+
+                // New processes may arrive during the switch
+                for (var j = 0; j < processes.length; j++) {
+                    if (processes[j].arrival <= time && added[j] === false) {
+                        readyQueue.push(j);
+                        added[j] = true;
+                    }
+                }
+            } else if (lastProcess !== "" && lastProcess !== processName) {
+                switchCount++;
+            }
+
+            if (firstStart[index] === -1) {
+                firstStart[index] = time;
+            }
+
+            var runTime = currentQuantum;
+            if (remaining[index] < currentQuantum) {
+                runTime = remaining[index];
+            }
+
+            schedule.push({
+                name: processName,
+                start: time,
+                end: time + runTime,
+                type: "process"
+            });
+
+            time = time + runTime;
+            remaining[index] = remaining[index] - runTime;
+            lastProcess = processName;
+
+            // Add new arrivals to the queue
+            for (var k = 0; k < processes.length; k++) {
+                if (processes[k].arrival <= time && added[k] === false) {
+                    readyQueue.push(k);
+                    added[k] = true;
+                }
+            }
+
+            // Put unfinished process at the end of the queue
+            if (remaining[index] > 0) {
+                readyQueue.push(index);
+            }
+
+            if (time > 500) {
+                break;
+            }
+        }
+
+        totalTime = time;
+
+        // Calculate process results
+        for (var i = 0; i < processes.length; i++) {
+            var endTime = 0;
+
+            for (var j = 0; j < schedule.length; j++) {
+                if (schedule[j].name === processes[i].name) {
+                    endTime = schedule[j].end;
+                }
+            }
+
+            completion[i] = endTime;
+            processes[i].completion = completion[i];
+            processes[i].turnaround = completion[i] - processes[i].arrival;
+            processes[i].waiting = processes[i].turnaround - processes[i].burst;
+            processes[i].response = firstStart[i] - processes[i].arrival;
+        }
+
+        currentTime = 0;
+    }
+
+    function showProcessTable() {
+        var text = "<table><tr><th>Process</th><th>Task</th><th>Arrival</th><th>Burst</th></tr>";
+
+        for (var i = 0; i < processes.length; i++) {
+            text += "<tr><td>" + processes[i].name + "</td><td>" +
+                processes[i].task + "</td><td>" + processes[i].arrival +
+                " ms</td><td>" + processes[i].burst + " ms</td></tr>";
+        }
+
+        text += "</table>";
+        document.getElementById("processTable").innerHTML = text;
+    }
+
+    function showChart() {
+        var chart = "";
+        var timeList = "";
+
+        for (var i = 0; i < schedule.length; i++) {
+            var item = schedule[i];
+            var duration = item.end - item.start;
+            var color = item.name.toLowerCase();
+
+            if (item.type === "switch") {
+                color = "switch";
+            }
+
+            chart += '<div class="block ' + color + '" style="width:' +
+                (duration * 45) + 'px">' + item.name + '<small>' +
+                item.start + "-" + item.end + ' ms</small></div>';
+        }
+
+        document.getElementById("chart").innerHTML = chart;
+
+        for (var t = 0; t < totalTime; t++) {
+            var running = "Idle";
+
+            for (var j = 0; j < schedule.length; j++) {
+                if (schedule[j].start <= t && schedule[j].end > t) {
+                    running = schedule[j].name;
+                }
+            }
+
+            var activeClass = "";
+            if (t === currentTime) {
+                activeClass = " active";
+            }
+
+            timeList += '<span class="time-item' + activeClass +
+                '" onclick="selectTime(' + t + ')">' + t + "-" + (t + 1) +
+                ': ' + running + '</span>';
+        }
+
+        document.getElementById("timeList").innerHTML = timeList;
+        document.getElementById("timeText").textContent =
+            "Current time: " + currentTime + " ms / " + totalTime + " ms";
+    }
+
+    function showResults() {
+        var totalTurnaround = 0;
+        var totalWaiting = 0;
+        var totalResponse = 0;
+        var table = "<table><tr><th>Process</th><th>Completion</th><th>Turnaround</th><th>Waiting</th><th>Response</th></tr>";
+
+        for (var i = 0; i < processes.length; i++) {
+            totalTurnaround += processes[i].turnaround;
+            totalWaiting += processes[i].waiting;
+            totalResponse += processes[i].response;
+
+            table += "<tr><td>" + processes[i].name + "</td><td>" +
+                processes[i].completion + " ms</td><td>" +
+                processes[i].turnaround + " ms</td><td>" +
+                processes[i].waiting + " ms</td><td>" +
+                processes[i].response + " ms</td></tr>";
+        }
+
+        table += "</table>";
+        document.getElementById("resultTable").innerHTML = table;
+
+        var averageTurnaround = totalTurnaround / processes.length;
+        var averageWaiting = totalWaiting / processes.length;
+        var averageResponse = totalResponse / processes.length;
+        var efficiency = ((totalTime - overheadTime) / totalTime) * 100;
+
+        var stats = '<div class="stat"><p>Average turnaround</p><strong>' +
+            averageTurnaround.toFixed(2) + ' ms</strong></div>';
+        stats += '<div class="stat"><p>Average waiting</p><strong>' +
+            averageWaiting.toFixed(2) + ' ms</strong></div>';
+        stats += '<div class="stat"><p>Average response</p><strong>' +
+            averageResponse.toFixed(2) + ' ms</strong></div>';
+        stats += '<div class="stat"><p>Context switches</p><strong>' +
+            switchCount + '</strong></div>';
+
+        if (currentActivity === 2) {
+            stats += '<div class="stat"><p>Switching overhead</p><strong>' +
+                overheadTime + ' ms</strong></div>';
+            stats += '<div class="stat"><p>CPU efficiency</p><strong>' +
+                efficiency.toFixed(2) + '%</strong></div>';
+            document.getElementById("extraNote").textContent =
+                "CPU efficiency = (total time - switching time) / total time x 100.";
+        } else {
+            document.getElementById("extraNote").textContent =
+                "No switching time is added in Activity 1.";
+        }
+
+        document.getElementById("stats").innerHTML = stats;
+    }
+
+    function selectTime(time) {
+        currentTime = time;
+        showChart();
+    }
+
+    function nextTime() {
+        if (currentTime < totalTime - 1) {
+            currentTime++;
+            showChart();
+        }
+    }
+
+    function previousTime() {
+        if (currentTime > 0) {
+            currentTime--;
+            showChart();
+        }
+    }
+
+    function resetTime() {
+        currentTime = 0;
+        showChart();
+    }
+
+    function compareResults() {
+        var firstQuantum = 2;
+        var secondQuantum;
+
+        if (currentActivity === 1) {
+            secondQuantum = 3;
+        } else {
+            secondQuantum = 4;
+        }
+
+        var savedQuantum = currentQuantum;
+        var savedActivity = currentActivity;
+
+        currentQuantum = firstQuantum;
+        makeSchedule();
+        var first = getAverages();
+
+        currentQuantum = secondQuantum;
+        makeSchedule();
+        var second = getAverages();
+
+        currentQuantum = savedQuantum;
+        currentActivity = savedActivity;
+        runSimulation();
+
+        var text = "<table><tr><th>Quantum</th><th>Avg turnaround</th><th>Avg waiting</th><th>Avg response</th><th>Switches</th>";
+
+        if (currentActivity === 2) {
+            text += "<th>Overhead</th><th>CPU efficiency</th>";
+        }
+
+        text += "</tr>";
+        text += makeComparisonRow(firstQuantum, first);
+        text += makeComparisonRow(secondQuantum, second);
+        text += "</table>";
+
+        document.getElementById("comparisonTable").innerHTML = text;
+        document.getElementById("comparisonSection").style.display = "block";
+    }
+
+    function getAverages() {
+        var turnaround = 0;
+        var waiting = 0;
+        var response = 0;
+
+        for (var i = 0; i < processes.length; i++) {
+            turnaround += processes[i].turnaround;
+            waiting += processes[i].waiting;
+            response += processes[i].response;
+        }
+
+        return {
+            turnaround: turnaround / processes.length,
+            waiting: waiting / processes.length,
+            response: response / processes.length,
+            switches: switchCount,
+            overhead: overheadTime,
+            efficiency: ((totalTime - overheadTime) / totalTime) * 100
+        };
+    }
+
+    function makeComparisonRow(quantum, result) {
+        var row = "<tr><td>" + quantum + " ms</td><td>" +
+            result.turnaround.toFixed(2) + " ms</td><td>" +
+            result.waiting.toFixed(2) + " ms</td><td>" +
+            result.response.toFixed(2) + " ms</td><td>" +
+            result.switches + "</td>";
+
+        if (currentActivity === 2) {
+            row += "<td>" + result.overhead + " ms</td><td>" +
+                result.efficiency.toFixed(2) + "%</td>";
+        }
+
+        return row + "</tr>";
+    }
+
+    document.getElementById("activity").addEventListener("change", function () {
+        document.getElementById("quantum").value = "2";
+        document.getElementById("comparisonSection").style.display = "none";
+        runSimulation();
+    });
+
+    document.getElementById("quantum").addEventListener("change", runSimulation);
+
+    runSimulation();
+</script>
+</body>
+</html>
